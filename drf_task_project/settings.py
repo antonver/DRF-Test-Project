@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "debug_toolbar",
     "drf_spectacular",
+    "borrowing_service",
 ]
 
 MIDDLEWARE = [
