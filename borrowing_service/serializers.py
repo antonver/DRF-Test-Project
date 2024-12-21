@@ -1,17 +1,25 @@
 from rest_framework import serializers
 
 from book_service.models import Book
-from book_service.serializers import BookSerializer
+from book_service.serializers import BookReadSerializer
 from borrowing_service.models import BorrowingService
 
 
 class BorrowingServiceReadSerializer(serializers.ModelSerializer):
-    book = BookSerializer
-    user = serializers.CharField(source="user.email")
+    book = BookReadSerializer
+    user_email = serializers.CharField(source="user.email")
+    user_id = serializers.IntegerField(source="user.id")
 
     class Meta:
         model = BorrowingService
-        fields = "__all__"
+        fields = [
+            "borrow_date",
+            "expected_return",
+            "actual_return",
+            "book",
+            "user_email",
+            "user_id",
+        ]
 
 
 def check_inventory(pk: int) -> bool:
@@ -28,10 +36,12 @@ class BorrowingServiceCreateSerializer(serializers.ModelSerializer):
         model = BorrowingService
         fields = ["borrow_date", "expected_return", "actual_return", "book"]
 
-    def create(self, **validated_data):
-        book_id = validated_data["book"]
-        if check_inventory(book_id):
-            reduce_inventory(book_id)
-            BorrowingService.objects.create(
-                **validated_data, user=self.context["request"].user
-            )
+    def create(self, validated_data):
+        user = validated_data.pop("user")
+        book = validated_data["book"]
+        if check_inventory(book.id):
+            reduce_inventory(book.id)
+            borrow = BorrowingService.objects.create(user=user, **validated_data)
+            return borrow
+        else:
+            raise serializers.ValidationError("No books left")
