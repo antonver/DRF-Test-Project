@@ -9,3 +9,5 @@ router.register(r"borrow", BorrowingServiceViewSet)
 
 urlpatterns = []
 urlpatterns += router.urls
+
+app_name = "borrowing_service"
