@@ -13,6 +13,7 @@ class BorrowingServiceReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = BorrowingService
         fields = [
+            "id",
             "borrow_date",
             "expected_return",
             "actual_return",
@@ -27,7 +28,9 @@ def check_inventory(pk: int) -> bool:
 
 
 def reduce_inventory(pk: int) -> None:
-    Book.objects.get(pk=pk).inventory -= 1
+    book = Book.objects.get(pk=pk)
+    book.inventory -= 1
+    book.save()
 
 
 class BorrowingServiceCreateSerializer(serializers.ModelSerializer):
@@ -45,3 +48,7 @@ class BorrowingServiceCreateSerializer(serializers.ModelSerializer):
             return borrow
         else:
             raise serializers.ValidationError("No books left")
+
+
+class BorrowingServiceChangeSerializer(serializers.Serializer):
+    borrowing_id = serializers.IntegerField()
