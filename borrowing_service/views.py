@@ -1,11 +1,18 @@
-from django.shortcuts import render
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
+from datetime import datetime
 
+from django.shortcuts import render, get_object_or_404
+from rest_framework import viewsets, status
+from rest_framework.decorators import api_view
+from rest_framework.parsers import JSONParser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.response import Response
+
+from book_service.models import Book
 from borrowing_service.models import BorrowingService
 from borrowing_service.serializers import (
     BorrowingServiceReadSerializer,
     BorrowingServiceCreateSerializer,
+    BorrowingServiceChangeSerializer,
 )
 
 
@@ -43,6 +50,39 @@ class BorrowingServiceViewSet(viewsets.ModelViewSet):
         return queryset
 
     def get_permissions(self):
-        if self.action in ["create", "update", "partial_update"]:
+        if self.action in ["create", "list"]:
             return [IsAuthenticated()]
+        elif self.action in ["update", "partial_update"]:
+            return [IsAdminUser()]
         return super().get_permissions()
+
+
+@api_view(["GET", "POST"])
+def return_date(request):
+    if request.method == "POST":
+        if request.user.is_authenticated:
+            serializer = BorrowingServiceChangeSerializer(data=request.data)
+            if serializer.is_valid():
+                borrowing_id = serializer.data.get("borrowing_id")
+                borrowing = get_object_or_404(BorrowingService, pk=borrowing_id)
+                if borrowing.user != request.user:
+                    return Response("Borrowing must belong to you", status=400)
+                if borrowing.actual_return is not None:
+                    return Response("You have already returned this book", status=400)
+                else:
+                    borrowing.actual_return = datetime.today()
+                    borrowing.save()
+                    book = Book.objects.get(id=borrowing.book.id)
+                    book.inventory += 1
+                    book.save()
+                    return Response("You returned this book", status=200)
+        else:
+            return Response("Not authorized", status=401)
+    elif request.method == "GET":
+        if request.user.is_authenticated:
+            serializer = BorrowingServiceReadSerializer(
+                BorrowingService.objects.filter(user=request.user), many=True
+            )
+            return Response(
+                {"message": "Your borrowings", "data": serializer.data}, status=200
+            )
