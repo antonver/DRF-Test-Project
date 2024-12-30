@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
-
+import telebot
 from book_service.models import Book
 from borrowing_service.models import BorrowingService
 from borrowing_service.serializers import (
@@ -14,10 +14,14 @@ from borrowing_service.serializers import (
     BorrowingServiceCreateSerializer,
     BorrowingServiceChangeSerializer,
 )
+from drf_task_project import settings
+
+bot = telebot.TeleBot(settings.TELEGRAM_BOT_TOKEN)
 
 
 # Create your views here.
 class BorrowingServiceViewSet(viewsets.ModelViewSet):
+    chat_id = None
     queryset = BorrowingService.objects.all()
 
     def get_serializer_class(self):
@@ -28,9 +32,13 @@ class BorrowingServiceViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+        if self.request.user.chat_id is not None:
+            bot.send_message(
+                self.request.user.chat_id,
+                f"You have just borrowed a new book: {Book.objects.get(id=serializer.data['book']).title}",
+            )
 
     def get_queryset(self):
-        print(self.request.user.id)
         queryset = self.queryset
         if not self.request.user.is_superuser:
             queryset = queryset.filter(user=self.request.user.id)
@@ -81,7 +89,8 @@ def return_date(request):
     elif request.method == "GET":
         if request.user.is_authenticated:
             serializer = BorrowingServiceReadSerializer(
-                BorrowingService.objects.filter(user=request.user), many=True
+                BorrowingService.objects.filter(user=request.user, actual_return=None),
+                many=True,
             )
             return Response(
                 {"message": "Your borrowings", "data": serializer.data}, status=200
