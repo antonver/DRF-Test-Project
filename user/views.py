@@ -4,7 +4,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.settings import api_settings
 
-from user.serializers import UserSerializer, AuthTokenSerializer
+from user.models import User
+from user.serializers import UserSerializer, AuthTokenSerializer, UserChatIdSerializer
 
 
 class CreateUserView(generics.CreateAPIView):
@@ -23,4 +24,12 @@ class ManageUserView(generics.RetrieveUpdateAPIView):
     permission_classes = (IsAuthenticated,)
 
     def get_object(self):
+        return self.request.user
+
+
+class UserChatId(generics.UpdateAPIView):
+    permission_classes = (IsAuthenticated,)
+    serializer_class = UserChatIdSerializer
+
+    def get_object(self, queryset=None):
         return self.request.user
