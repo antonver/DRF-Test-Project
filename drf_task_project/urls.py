@@ -27,4 +27,10 @@ urlpatterns = [
     path("api/book_service/", include("book_service.urls")),  # Book service API
     path("api/borrowing_service/", include("borrowing_service.urls")),
     path("", include("user.urls"), name="user"),
+    path("api/doc/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "api/doc/swagger/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
 ] + debug_toolbar_urls()
