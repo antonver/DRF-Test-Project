@@ -34,7 +34,6 @@ def reduce_inventory(pk: int) -> None:
 
 
 class BorrowingServiceCreateSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = BorrowingService
         fields = ["borrow_date", "expected_return", "actual_return", "book"]
