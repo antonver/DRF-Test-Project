@@ -1,14 +1,16 @@
 from datetime import datetime
 
 from django.shortcuts import render, get_object_or_404
+from django.views import generic
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, mixins, generics
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.parsers import JSONParser
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 import telebot
+from rest_framework.views import APIView
+
 from book_service.models import Book
 from borrowing_service.models import BorrowingService
 from borrowing_service.serializers import (
@@ -89,57 +91,33 @@ class BorrowingServiceViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
 
-@extend_schema(
-    methods=["POST"],
-    request=BorrowingServiceChangeSerializer,
-    responses={
-        200: OpenApiResponse(description="You returned this book"),
-        400: OpenApiResponse(
-            description="Borrowing must belong to you or You have already returned this book"
-        ),
-        401: OpenApiResponse(description="Not authorized"),
-    },
-    description="Endpoint to return a borrowed book. Requires authentication.",
-)
-@extend_schema(
-    methods=["GET"],
-    responses={
-        200: BorrowingServiceReadSerializer(many=True),
-        401: OpenApiResponse(description="Not authorized"),
-    },
-    description="Endpoint to retrieve the list of borrowed books that have not been returned. Requires authentication.",
-)
-@api_view(["GET", "POST"])
-@permission_classes([IsAuthenticated])
-def return_date(request):
-    if request.method == "POST":
+class BorrowingServiceReturnView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        data = BorrowingService.objects.filter(user=request.user, actual_return=None)
+        serializer = BorrowingServiceReadSerializer(data, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
         serializer = BorrowingServiceChangeSerializer(data=request.data)
         if serializer.is_valid():
             borrowing_id = serializer.validated_data.get("borrowing_id")
             borrowing = get_object_or_404(BorrowingService, pk=borrowing_id)
             if borrowing.user != request.user:
                 return Response(
-                    "Borrowing must belong to you", status=status.HTTP_400_BAD_REQUEST
+                    "This borrowing does not belong to you.",
+                    status=status.HTTP_403_FORBIDDEN,
                 )
-            if borrowing.actual_return is not None:
+            elif borrowing.actual_return is not None:
                 return Response(
-                    "You have already returned this book",
+                    "You have already returned this borrowing.",
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             else:
                 borrowing.actual_return = datetime.today()
                 borrowing.save()
-                book = Book.objects.get(id=borrowing.book.id)
-                book.inventory += 1
-                book.save()
-                return Response("You returned this book", status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    elif request.method == "GET":
-        serializer = BorrowingServiceReadSerializer(
-            BorrowingService.objects.filter(user=request.user, actual_return=None),
-            many=True,
-        )
-        return Response(
-            {"message": "Your borrowings", "data": serializer.data},
-            status=status.HTTP_200_OK,
-        )
+                return Response(
+                    "You returned this borrowing", status=status.HTTP_200_OK
+                )
+        return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
